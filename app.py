@@ -10,41 +10,42 @@ def get_range_for_difficulty(difficulty: str):
         return 1, 50
     return 1, 100
 
-
-def parse_guess(raw: str):
+#Fixed: Now it accepts any numeric input that is valid and inside of the range that the guesses can be.
+def parse_guess(raw: str, low: int, high: int):
     if raw is None:
         return False, None, "Enter a guess."
 
+    raw = raw.strip()
     if raw == "":
         return False, None, "Enter a guess."
 
     try:
         if "." in raw:
-            value = int(float(raw))
+            value = float(raw)
+            if not value.is_integer():
+                return False, None, "Enter a whole number."
+            value = int(value)
         else:
             value = int(raw)
     except Exception:
         return False, None, "That is not a number."
 
+    if value < low or value > high:
+        return False, None, f"Guess must be between {low} and {high}."
+
     return True, value, None
 
-
+#Fix: By addign a guard that normalizes the secret and switched the hints so that when the guess is too high it promts you to go lower.
 def check_guess(guess, secret):
+    if isinstance(secret, str):
+        secret = int(secret)
+
     if guess == secret:
         return "Win", "🎉 Correct!"
-
-    try:
-        if guess > secret:
-            return "Too High", "📈 Go HIGHER!"
-        else:
-            return "Too Low", "📉 Go LOWER!"
-    except TypeError:
-        g = str(guess)
-        if g == secret:
-            return "Win", "🎉 Correct!"
-        if g > secret:
-            return "Too High", "📈 Go HIGHER!"
-        return "Too Low", "📉 Go LOWER!"
+    if guess > secret:
+        return "Too High", "📈 Go LOWER!"
+    else:
+        return "Too Low", "📉 Go HIGHER!"
 
 
 def update_score(current_score: int, outcome: str, attempt_number: int):
@@ -91,9 +92,9 @@ st.sidebar.caption(f"Attempts allowed: {attempt_limit}")
 
 if "secret" not in st.session_state:
     st.session_state.secret = random.randint(low, high)
-
-if "attempts" not in st.session_state:
-    st.session_state.attempts = 1
+#Fix: Starts the attempts at 0 and makes sure that the player does not run out of attempts too early.
+if "attempts" not in st.session_state: 
+    st.session_state.attempts = 0
 
 if "score" not in st.session_state:
     st.session_state.score = 0
@@ -131,9 +132,13 @@ with col2:
 with col3:
     show_hint = st.checkbox("Show hint", value=True)
 
+#Fix: Added a random number generator and updated when new game starts
 if new_game:
     st.session_state.attempts = 0
-    st.session_state.secret = random.randint(1, 100)
+    st.session_state.secret = random.randint(low, high)
+    st.session_state.score = 0
+    st.session_state.status = "playing"
+    st.session_state.history = []
     st.success("New game started.")
     st.rerun()
 
@@ -147,7 +152,7 @@ if st.session_state.status != "playing":
 if submit:
     st.session_state.attempts += 1
 
-    ok, guess_int, err = parse_guess(raw_guess)
+    ok, guess_int, err = parse_guess(raw_guess, low, high)
 
     if not ok:
         st.session_state.history.append(raw_guess)
